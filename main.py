@@ -59,7 +59,7 @@ def get_args_parser():
     # Model parameters
     parser.add_argument(
         "--model",
-        default="deit_base_patch16_224",
+        default="resnet34",
         type=str,
         metavar="MODEL",
         help="Name of model to train",
