@@ -32,7 +32,7 @@ from datasets import build_dataset
 from engine import evaluate, train_one_epoch
 from samplers import RASampler
 
-
+import mpvit # mpvit module
 
 
 
@@ -315,6 +315,10 @@ def get_args_parser():
     parser.add_argument(
         "--dist_url", default="env://", help="url used to set up distributed training"
     )
+
+    parser.add_argument('--pretrained', action='store_true', default=False,
+                       help='Start with pretrained version of specified network (if avail)')
+
     return parser
 
 
@@ -397,7 +401,7 @@ def main(args):
     print(f"Creating model: {args.model}")
     model = create_model(
         args.model,
-        pretrained=False,
+        pretrained=args.pretrained,
         num_classes=args.nb_classes,
         drop_rate=args.drop,
         drop_path_rate=args.drop_path,

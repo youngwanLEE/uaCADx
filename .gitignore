@@ -1,6 +1,10 @@
 # Byte-compiled / optimized / DLL files
 
 data/*
+# folder
+output/
+exps/
+data/
 
 __pycache__/
 *.py[cod]
