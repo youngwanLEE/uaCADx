@@ -319,6 +319,8 @@ def get_args_parser():
     parser.add_argument('--pretrained', action='store_true', default=False,
                        help='Start with pretrained version of specified network (if avail)')
 
+    parser.add_argument('--pretrained_mpvit', default="", help="pretrained weight of mpvit")
+
     return parser
 
 
@@ -408,8 +410,27 @@ def main(args):
         drop_block_rate=args.drop_block,
         **eval(args.model_kwargs),
     )
-
     print(model)
+
+
+    if args.pretrained_mpvit.startswith("https"):
+        checkpoint = torch.hub.load_state_dict_from_url(
+            args.pretrained_mpvit, map_location="cpu", check_hash=True
+        )
+    else:
+        checkpoint = torch.load(args.pretrained_mpvit, map_location="cpu")
+
+    checkpoint_state_dict = checkpoint["model"]
+    model_state_dict = model.state_dict()
+    for k in ['cls_head.cls.weight', 'cls_head.cls.bias']:
+        if k in checkpoint_state_dict and checkpoint_state_dict[k].shape != model_state_dict[k].shape:
+            print(f"Skip loading parameter:{k},"
+                  f"required shape: {model_state_dict[k].shape},"
+                  f"loaded shape: {checkpoint_state_dict[k].shape}")
+            del checkpoint_state_dict[k]
+    model.load_state_dict(checkpoint_state_dict, strict=False)
+
+
 
     model.to(device)
 
