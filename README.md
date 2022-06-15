@@ -5,6 +5,11 @@ uncertainty-aware CADx
 
 ### MPViT
 
+download the pretrained weight of mpvit-small
+```
+wget https://dl.dropbox.com/s/y3dnmmy8h4npz7a/mpvit_small.pth
+```
+
 ```
 python -m torch.distributed.launch --nproc_per_node 8 --use_env main.py --model mpvit_small --pretrained_mpvit <path/to/pretrained_ckpt> --data-path <path/to/polyp> --output <path/to/output_dir>
 ```
