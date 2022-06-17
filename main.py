@@ -321,6 +321,8 @@ def get_args_parser():
 
     parser.add_argument('--pretrained_mpvit', default="", help="pretrained weight of mpvit")
 
+    parser.add_argument("--ext_val", default="", help="ext_val set. e.g., `ys` or `eh` or `as` ")
+
     return parser
 
 
@@ -410,27 +412,19 @@ def main(args):
         drop_block_rate=args.drop_block,
         **eval(args.model_kwargs),
     )
-    print(model)
 
 
-    if args.pretrained_mpvit.startswith("https"):
-        checkpoint = torch.hub.load_state_dict_from_url(
-            args.pretrained_mpvit, map_location="cpu", check_hash=True
-        )
-    else:
+    if args.pretrained_mpvit:
         checkpoint = torch.load(args.pretrained_mpvit, map_location="cpu")
-
-    checkpoint_state_dict = checkpoint["model"]
-    model_state_dict = model.state_dict()
-    for k in ['cls_head.cls.weight', 'cls_head.cls.bias']:
-        if k in checkpoint_state_dict and checkpoint_state_dict[k].shape != model_state_dict[k].shape:
-            print(f"Skip loading parameter:{k},"
-                  f"required shape: {model_state_dict[k].shape},"
-                  f"loaded shape: {checkpoint_state_dict[k].shape}")
-            del checkpoint_state_dict[k]
-    model.load_state_dict(checkpoint_state_dict, strict=False)
-
-
+        checkpoint_state_dict = checkpoint["model"]
+        model_state_dict = model.state_dict()
+        for k in ['cls_head.cls.weight', 'cls_head.cls.bias']:
+            if k in checkpoint_state_dict and checkpoint_state_dict[k].shape != model_state_dict[k].shape:
+                print(f"Skip loading parameter:{k},"
+                      f"required shape: {model_state_dict[k].shape},"
+                      f"loaded shape: {checkpoint_state_dict[k].shape}")
+                del checkpoint_state_dict[k]
+        model.load_state_dict(checkpoint_state_dict, strict=False)
 
     model.to(device)
 

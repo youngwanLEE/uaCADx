@@ -71,7 +71,8 @@ class INatDataset(ImageFolder):
 def build_dataset(is_train, args):
     """buld_dataset."""
     transform = build_transform(is_train, args)
-    path = os.path.join(args.data_path, 'Train' if is_train else 'Int_val')
+    val_type = args.ext_val if args.ext_val else 'Int_val'
+    path = os.path.join(args.data_path, 'Train' if is_train else val_type)
     dataset = ImageFolder(path, transform=transform)
 
     return dataset, 2
