@@ -321,7 +321,7 @@ def get_args_parser():
 
     parser.add_argument('--pretrained_mpvit', default="", help="pretrained weight of mpvit")
 
-    parser.add_argument("--ext_val", default="", help="ext_val set. e.g., `ys` or `eh` or `as` ")
+    parser.add_argument("--ext_val", default="", help="ext_val set. e.g., `Ext_val/ys` or `Ext_val/eh` or `Ext_val/as` ")
 
     return parser
 
