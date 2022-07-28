@@ -5,6 +5,7 @@ import math
 import sys
 from typing import Iterable, Optional
 
+import numpy as np
 import torch
 from timm.data import Mixup
 from timm.utils import ModelEma, accuracy
@@ -90,7 +91,7 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device, disable_amp):
+def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=1):
     """evaluation function."""
     criterion = torch.nn.CrossEntropyLoss()
 
@@ -100,17 +101,41 @@ def evaluate(data_loader, model, device, disable_amp):
     # switch to evaluation mode
     model.eval()
 
+    mc_gts = []
+    mc_results = []
     for images, target in metric_logger.log_every(data_loader, 10, header):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
         # compute output
         if disable_amp:
-            output = model(images)
+            if mc_dropout:
+                outputs = []
+                for _ in range(mc_iter):
+                    output = model(images, drop_on=True)
+                    outputs.append(output)
+                outputs = torch.stack(outputs, dim=1)
+                output = torch.mean(outputs, 1)
+                outputs = outputs.detach().cpu().numpy()
+                mc_results.append(outputs)
+                mc_gts.append(target.detach().cpu().numpy())
+            else:
+                output = model(images)
             loss = criterion(output, target)
         else:
             with torch.cuda.amp.autocast():
-                output = model(images)
+                if mc_dropout:
+                    outputs = []
+                    for _ in range(mc_iter):
+                        output = model(images, drop_on=True)
+                        outputs.append(output)
+                    outputs = torch.stack(outputs, dim=1)
+                    output = torch.mean(outputs, 1)
+                    outputs = outputs.detach().cpu().numpy()
+                    mc_results.append(outputs)
+                    mc_gts.append(target.detach().cpu().numpy())
+                else:
+                    output = model(images)
                 loss = criterion(output, target)
 
         acc1 = accuracy(output, target, topk=(1,))[0]
@@ -121,5 +146,13 @@ def evaluate(data_loader, model, device, disable_amp):
 
     print('* Acc@1 {top1.global_avg:.3f} loss {losses.global_avg:.3f}'
           .format(top1=metric_logger.acc1, losses=metric_logger.loss))
+    final_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    if mc_dropout:
+        mc_results = {
+            'probs': np.concatenate(mc_results, axis=0),
+            'gts': np.concatenate(mc_gts, axis=0),
+            'images': [s[0] for s in data_loader.dataset.samples],
+        }
+        return final_stats, mc_results
+    return final_stats
