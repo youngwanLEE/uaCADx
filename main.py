@@ -494,7 +494,11 @@ def main(args):
             f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%"
         )
         if args.output_dir and utils.is_main_process():
-            np.save(output_dir / "mc_results.npy", mc_results)
+            if len(args.ext_val) > 0:
+                add_name = "_" + args.ext_val.split("/")[-1]
+            else:
+                add_name = ""
+            np.save(output_dir / f"mc_results{add_name}.npy", mc_results)
             with (output_dir / "test_mc_log.txt").open("w") as f:
                 log_stats = {
                     **{f"mc dropout test_{k}": v for k, v in test_stats.items()},

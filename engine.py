@@ -7,6 +7,8 @@ from typing import Iterable, Optional
 
 import numpy as np
 import torch
+import torch.nn.functional as F
+
 from timm.data import Mixup
 from timm.utils import ModelEma, accuracy
 
@@ -116,6 +118,7 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
                     outputs.append(output)
                 outputs = torch.stack(outputs, dim=1)
                 output = torch.mean(outputs, 1)
+                outputs = F.softmax(outputs, dim=2)
                 outputs = outputs.detach().cpu().numpy()
                 mc_results.append(outputs)
                 mc_gts.append(target.detach().cpu().numpy())
@@ -131,6 +134,7 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
                         outputs.append(output)
                     outputs = torch.stack(outputs, dim=1)
                     output = torch.mean(outputs, 1)
+                    outputs = F.softmax(outputs, dim=2)
                     outputs = outputs.detach().cpu().numpy()
                     mc_results.append(outputs)
                     mc_gts.append(target.detach().cpu().numpy())
