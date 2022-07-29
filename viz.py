@@ -39,8 +39,8 @@ def draw(data):
                     cells=dict(
                         values=[
                             ['min', 'max', 'median', 'average', 'std', 'entropy'], 
-                            [round(min(probs[:, 0])), round(max(probs[:, 0])), round(np.median(probs[:, 0])), round(np.mean(probs[:, 0])), round(np.std(probs[:, 0])), '-'],
-                            [round(min(probs[:, 1])), round(max(probs[:, 1])), round(np.median(probs[:, 1])), round(np.mean(probs[:, 1])), round(np.std(probs[:, 1])), '-'],
+                            [round(min(probs[:, 0]), 3), round(max(probs[:, 0]), 3), round(np.median(probs[:, 0]), 3), round(np.mean(probs[:, 0]), 3), round(np.std(probs[:, 0]), 3), '-'],
+                            [round(min(probs[:, 1]), 3), round(max(probs[:, 1]), 3), round(np.median(probs[:, 1]), 3), round(np.mean(probs[:, 1]), 3), round(np.std(probs[:, 1]), 3), '-'],
                         ])),
             row=idx, col=4
         )
