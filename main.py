@@ -32,9 +32,7 @@ from datasets import build_dataset
 from engine import evaluate, train_one_epoch
 from samplers import RASampler
 
-import mpvit # mpvit module
-
-
+import mpvit  # mpvit module
 
 
 def get_args_parser():
@@ -317,15 +315,16 @@ def get_args_parser():
     )
 
     parser.add_argument('--pretrained', action='store_true', default=False,
-                       help='Start with pretrained version of specified network (if avail)')
+                        help='Start with pretrained version of specified network (if avail)')
 
     parser.add_argument('--pretrained_mpvit', default="", help="pretrained weight of mpvit")
 
     parser.add_argument("--ext_val", default="",
                         help="ext_val set. e.g., `Ext_val/ys` or `Ext_val/eh` or `Ext_val/as` ")
+    parser.add_argument("--mc", action="store_true", help="Perform mc dropout evaluation")
+    parser.add_argument("--mc_iter", type=int, default=100, help="mc dropout iteration")
     parser.add_argument("--metrics", action="store_true", defualt=False,
-                        help="shows otehr metrics: auc and F1-score")
-
+                        help="shows otehr metrics: AUC, F1-score, and Recall")
     return parser
 
 
@@ -416,7 +415,6 @@ def main(args):
         **eval(args.model_kwargs),
     )
 
-
     if args.pretrained_mpvit:
         checkpoint = torch.load(args.pretrained_mpvit, map_location="cpu")
         checkpoint_state_dict = checkpoint["model"]
@@ -488,8 +486,29 @@ def main(args):
             if args.model_ema:
                 utils._load_checkpoint_for_ema(model_ema, checkpoint["model_ema"])
 
-    if args.eval:
-        test_stats = evaluate(data_loader_val, model, device, disable_amp=args.disable_amp, metrics=args.trics)
+    if args.mc:
+        test_stats, mc_results = evaluate(data_loader_val, model, device, disable_amp=args.disable_amp, mc_dropout=True,
+                                          mc_iter=args.mc_iter, metrics=args.metrics)
+
+        print(
+            f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%"
+        )
+        if args.output_dir and utils.is_main_process():
+            if len(args.ext_val) > 0:
+                add_name = "_" + args.ext_val.split("/")[-1]
+            else:
+                add_name = ""
+            np.save(output_dir / f"mc_results{add_name}.npy", mc_results)
+            with (output_dir / "test_mc_log.txt").open("w") as f:
+                log_stats = {
+                    **{f"mc dropout test_{k}": v for k, v in test_stats.items()},
+                    "n_parameters": n_parameters,
+                }
+                f.write(json.dumps(log_stats) + "\n")
+
+        return
+    elif args.eval:
+        test_stats = evaluate(data_loader_val, model, device, disable_amp=args.disable_amp, metrics=args.metrics)
         print(
             f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%"
         )

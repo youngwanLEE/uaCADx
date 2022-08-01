@@ -22,6 +22,7 @@ from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.models.layers import DropPath, trunc_normal_
 from timm.models.registry import register_model
 from torch import einsum, nn
+import torch.nn.functional as F
 
 __all__ = [
     "mpvit_tiny",
@@ -617,10 +618,11 @@ class MPViT(nn.Module):
         drop_path_rate=0.0,
         in_chans=3,
         num_classes=1000,
+        drop_rate=0.,
         **kwargs,
     ):
         super().__init__()
-
+        self.drop = drop_rate
         self.num_classes = num_classes
         self.num_stages = num_stages
 
@@ -700,10 +702,12 @@ class MPViT(nn.Module):
 
         return x
 
-    def forward(self, x):
+    def forward(self, x, drop_on=False):
         """foward function"""
         x = self.forward_features(x)
 
+        if self.training or drop_on:
+            x = F.dropout(x, p=self.drop, training=True)
         # cls head
         out = self.cls_head(x)
         return out
