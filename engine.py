@@ -113,6 +113,8 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
 
     mc_gts = []
     mc_results = []
+    y_pred_list = []
+    y_target_list = []
 
     for images, target in metric_logger.log_every(data_loader, 10, header):
         images = images.to(device, non_blocking=True)
@@ -153,6 +155,9 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
 
         acc1 = accuracy(output, target, topk=(1,))[0]
 
+        y_pred_list.append(output)
+        y_target_list.append(target)
+
         batch_size = images.shape[0]
         metric_logger.update(loss=loss.item())
         metric_logger.meters["acc1"].update(acc1.item(), n=batch_size)
@@ -165,10 +170,18 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
             metric_logger.meters['f1score'].update(f1_score_val.item(), n=batch_size)
             metric_logger.meters['recall'].update(recall_val.item(), n=batch_size)
 
+    y_pred_list = torch.cat(y_pred_list)
+    y_target_list = torch.cat(y_target_list)
+    auc_all = auroc(y_pred_list, y_target_list)
+    f1score_all = f1score(y_pred_list, y_target_list)
+    recall_all = recall(y_pred_list, y_target_list)
+    print(f"auc_all: {auc_all} | f1-score_all: {f1score_all} | recall_all: {recall_all}")
+
+
     if metrics:
-        print('* Acc@1 {top1.global_avg:.3f} auroc {auroc.global_avg:.3f} f1-score {f1score.global_avg:.3f}  '
+        print('* Acc@1 {top1.global_avg:.3f} f1-score {f1score.global_avg:.3f}  '
               'recall {recall.global_avg:.3f} loss {losses.global_avg:.3f}'
-              .format(top1=metric_logger.acc1, auroc=metric_logger.auroc, f1score=metric_logger.f1score,
+              .format(top1=metric_logger.acc1, f1score=metric_logger.f1score,
                       recall=metric_logger.recall, losses=metric_logger.loss))
     else:
         print('* Acc@1 {top1.global_avg:.3f} loss {losses.global_avg:.3f}'
