@@ -323,7 +323,7 @@ def get_args_parser():
                         help="ext_val set. e.g., `Ext_val/ys` or `Ext_val/eh` or `Ext_val/as` ")
     parser.add_argument("--mc", action="store_true", help="Perform mc dropout evaluation")
     parser.add_argument("--mc_iter", type=int, default=100, help="mc dropout iteration")
-    parser.add_argument("--metrics", action="store_true", defualt=False,
+    parser.add_argument("--metrics", action="store_true", default=False,
                         help="shows otehr metrics: AUC, F1-score, and Recall")
     return parser
 

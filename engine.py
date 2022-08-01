@@ -103,9 +103,9 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = "Test:"
 
-    auroc = AUROC(pos_label=1)
-    f1score = F1Score(pos_label=1)
-    recall = Recall(pos_label=1)
+    auroc = AUROC(num_classes=2).to(device)
+    f1score = F1Score(num_classes=2).to(device)
+    recall = Recall(num_classes=2).to(device)
 
     # switch to evaluation mode
     model.eval()
@@ -115,6 +115,8 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
     for images, target in metric_logger.log_every(data_loader, 10, header):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
+
+        print(images)
 
         # compute output
         if disable_amp:
