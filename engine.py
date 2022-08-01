@@ -155,8 +155,8 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
 
         acc1 = accuracy(output, target, topk=(1,))[0]
 
-        y_pred_list.append(output)
-        y_target_list.append(target)
+        y_pred_list.append(output) # output's shape : [batch_size, 2]
+        y_target_list.append(target) # target's shape : [batch_size]
 
         batch_size = images.shape[0]
         metric_logger.update(loss=loss.item())
@@ -175,7 +175,7 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
     auc_all = auroc(y_pred_list, y_target_list)
     f1score_all = f1score(y_pred_list, y_target_list)
     recall_all = recall(y_pred_list, y_target_list)
-    print(f"auc_all: {auc_all} | f1-score_all: {f1score_all} | recall_all: {recall_all}")
+    print(f"auc_all: {auc_all:.4f} | f1-score_all: {f1score_all:.4f} | recall_all: {recall_all:.4f}")
 
 
     if metrics:
