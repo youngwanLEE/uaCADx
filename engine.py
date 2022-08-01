@@ -9,6 +9,8 @@ import torch
 from timm.data import Mixup
 from timm.utils import ModelEma, accuracy
 
+from torchmetrics import AUROC, F1Score, Recall
+
 import utils
 
 
@@ -90,12 +92,16 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device, disable_amp):
+def evaluate(data_loader, model, device, disable_amp, metrics):
     """evaluation function."""
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = "Test:"
+
+    auroc = AUROC(pos_label=1)
+    f1score = F1Score(pos_label=1)
+    recall = Recall(pos_label=1)
 
     # switch to evaluation mode
     model.eval()
@@ -119,7 +125,21 @@ def evaluate(data_loader, model, device, disable_amp):
         metric_logger.update(loss=loss.item())
         metric_logger.meters["acc1"].update(acc1.item(), n=batch_size)
 
-    print('* Acc@1 {top1.global_avg:.3f} loss {losses.global_avg:.3f}'
-          .format(top1=metric_logger.acc1, losses=metric_logger.loss))
+        if metrics:
+            auroc_val = auroc(output, target)
+            f1_score_val = f1score(output, target)
+            recall_val = recall(output, target)
+            metric_logger.meters['auroc'].update(auroc_val.item(), n=batch_size)
+            metric_logger.meters['f1score'].update(f1_score_val.item(), n=batch_size)
+            metric_logger.meters['recall'].update(recall_val.item(), n=batch_size)
+
+            print('* Acc@1 {top1.global_avg:.3f} auroc {auroc.global_avg:.3f} f1-score {f1score.global_avg:.3f}  '
+                  'recall {recall.global_avg:.3f} loss {losses.global_avg:.3f}'
+                  .format(top1=metric_logger.acc1, auroc=metric_logger.auroc, f1score=metric_logger.f1score,
+                          recall=metric_logger.recall, losses=metric_logger.loss))
+        else:
+            print('* Acc@1 {top1.global_avg:.3f}  aucroc {me}  loss {losses.global_avg:.3f}'
+                  .format(top1=metric_logger.acc1, losses=metric_logger.loss))
+
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}

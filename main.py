@@ -321,7 +321,10 @@ def get_args_parser():
 
     parser.add_argument('--pretrained_mpvit', default="", help="pretrained weight of mpvit")
 
-    parser.add_argument("--ext_val", default="", help="ext_val set. e.g., `Ext_val/ys` or `Ext_val/eh` or `Ext_val/as` ")
+    parser.add_argument("--ext_val", default="",
+                        help="ext_val set. e.g., `Ext_val/ys` or `Ext_val/eh` or `Ext_val/as` ")
+    parser.add_argument("--metrics", action="store_true", defualt=False,
+                        help="shows otehr metrics: auc and F1-score")
 
     return parser
 
@@ -486,7 +489,7 @@ def main(args):
                 utils._load_checkpoint_for_ema(model_ema, checkpoint["model_ema"])
 
     if args.eval:
-        test_stats = evaluate(data_loader_val, model, device, disable_amp=args.disable_amp)
+        test_stats = evaluate(data_loader_val, model, device, disable_amp=args.disable_amp, metrics=args.trics)
         print(
             f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%"
         )
