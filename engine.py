@@ -13,7 +13,7 @@ from timm.data import Mixup
 from timm.utils import ModelEma, accuracy
 
 from torchmetrics import AUROC, F1Score, Recall
-from sklearn.metrics import roc_auc_score, average_precision_score
+# from sklearn.metrics import roc_auc_score, average_precision_score
 
 
 import utils
@@ -117,7 +117,6 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
     for images, target in metric_logger.log_every(data_loader, 10, header):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
-
 
         # compute output
         if disable_amp:
