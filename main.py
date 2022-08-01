@@ -405,15 +405,18 @@ def main(args):
         )
 
     print(f"Creating model: {args.model}")
-    model = create_model(
-        args.model,
-        pretrained=args.pretrained,
-        num_classes=args.nb_classes,
-        drop_rate=args.drop,
-        drop_path_rate=args.drop_path,
-        drop_block_rate=args.drop_block,
-        **eval(args.model_kwargs),
-    )
+    if args.model == 'inception_v3':
+        model = create_model('inception_v3', pretrained=args.pretrained, num_classes=args.nb_classes)
+    else:
+        model = create_model(
+            args.model,
+            pretrained=args.pretrained,
+            num_classes=args.nb_classes,
+            drop_rate=args.drop,
+            drop_path_rate=args.drop_path,
+            drop_block_rate=args.drop_block,
+            **eval(args.model_kwargs),
+        )
 
     if args.pretrained_mpvit:
         checkpoint = torch.load(args.pretrained_mpvit, map_location="cpu")
