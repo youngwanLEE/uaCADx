@@ -13,6 +13,7 @@ from timm.data import Mixup
 from timm.utils import ModelEma, accuracy
 
 from torchmetrics import AUROC, F1Score, Recall
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 
 import utils
@@ -112,11 +113,11 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
 
     mc_gts = []
     mc_results = []
+
     for images, target in metric_logger.log_every(data_loader, 10, header):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        print(images)
 
         # compute output
         if disable_amp:
@@ -166,12 +167,12 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
             metric_logger.meters['recall'].update(recall_val.item(), n=batch_size)
 
     if metrics:
-            print('* Acc@1 {top1.global_avg:.3f} auroc {auroc.global_avg:.3f} f1-score {f1score.global_avg:.3f}  '
-                  'recall {recall.global_avg:.3f} loss {losses.global_avg:.3f}'
-                  .format(top1=metric_logger.acc1, auroc=metric_logger.auroc, f1score=metric_logger.f1score,
-                          recall=metric_logger.recall, losses=metric_logger.loss))
+        print('* Acc@1 {top1.global_avg:.3f} auroc {auroc.global_avg:.3f} f1-score {f1score.global_avg:.3f}  '
+              'recall {recall.global_avg:.3f} loss {losses.global_avg:.3f}'
+              .format(top1=metric_logger.acc1, auroc=metric_logger.auroc, f1score=metric_logger.f1score,
+                      recall=metric_logger.recall, losses=metric_logger.loss))
     else:
-        print('* Acc@1 {top1.global_avg:.3f}  aucroc {me}  loss {losses.global_avg:.3f}'
+        print('* Acc@1 {top1.global_avg:.3f} loss {losses.global_avg:.3f}'
               .format(top1=metric_logger.acc1, losses=metric_logger.loss))
 
     final_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
