@@ -12,6 +12,10 @@ import torch.nn.functional as F
 from timm.data import Mixup
 from timm.utils import ModelEma, accuracy
 
+from torchmetrics import AUROC, F1Score, Recall
+# from sklearn.metrics import roc_auc_score, average_precision_score
+
+
 import utils
 
 
@@ -93,18 +97,25 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=1):
+def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=1, metrics=None):
     """evaluation function."""
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = "Test:"
 
+    auroc = AUROC(num_classes=2).to(device)
+    f1score = F1Score(num_classes=2).to(device)
+    recall = Recall(num_classes=2).to(device)
+
     # switch to evaluation mode
     model.eval()
 
     mc_gts = []
     mc_results = []
+    y_pred_list = []
+    y_target_list = []
+
     for images, target in metric_logger.log_every(data_loader, 10, header):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
@@ -144,12 +155,38 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
 
         acc1 = accuracy(output, target, topk=(1,))[0]
 
+        y_pred_list.append(output) # output's shape : [batch_size, 2]
+        y_target_list.append(target) # target's shape : [batch_size]
+
         batch_size = images.shape[0]
         metric_logger.update(loss=loss.item())
         metric_logger.meters["acc1"].update(acc1.item(), n=batch_size)
 
-    print('* Acc@1 {top1.global_avg:.3f} loss {losses.global_avg:.3f}'
-          .format(top1=metric_logger.acc1, losses=metric_logger.loss))
+        if metrics:
+            auroc_val = auroc(output, target)
+            f1_score_val = f1score(output, target)
+            recall_val = recall(output, target)
+            metric_logger.meters['auroc'].update(auroc_val.item(), n=batch_size)
+            metric_logger.meters['f1score'].update(f1_score_val.item(), n=batch_size)
+            metric_logger.meters['recall'].update(recall_val.item(), n=batch_size)
+
+    y_pred_list = torch.cat(y_pred_list)
+    y_target_list = torch.cat(y_target_list)
+    auc_all = auroc(y_pred_list, y_target_list)
+    f1score_all = f1score(y_pred_list, y_target_list)
+    recall_all = recall(y_pred_list, y_target_list)
+    print(f"auc_all: {auc_all:.4f} | f1-score_all: {f1score_all:.4f} | recall_all: {recall_all:.4f}")
+
+
+    if metrics:
+        print('* Acc@1 {top1.global_avg:.3f} f1-score {f1score.global_avg:.3f}  '
+              'recall {recall.global_avg:.3f} loss {losses.global_avg:.3f}'
+              .format(top1=metric_logger.acc1, f1score=metric_logger.f1score,
+                      recall=metric_logger.recall, losses=metric_logger.loss))
+    else:
+        print('* Acc@1 {top1.global_avg:.3f} loss {losses.global_avg:.3f}'
+              .format(top1=metric_logger.acc1, losses=metric_logger.loss))
+
     final_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
     if mc_dropout:
