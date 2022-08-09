@@ -6,6 +6,7 @@ import os
 import argparse
 from glob import glob
 import csv
+from shutil import copyfile
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -43,12 +44,16 @@ def draw(data, name):
     wr = csv.writer(f)
     wr.writerow(['img_num'] + [i for i in range(100)])
 
+    if not os.path.exists(name + "/images"):
+        os.makedirs(name + "/images")
+
     for idx, (i, p, g) in enumerate(zip(data['images'], data['probs'], data['gts'])):
         wr.writerow([idx] + p[:, 0].tolist())
-        # pred = p.mean(axis=0).argmax(axis=0)
-        
-        # i = Image.open(i)
-        # draw_subplots(i, "AD" if g == 0 else "HP", pred, p, name, idx)
+        pred = p.mean(axis=0).argmax(axis=0)
+        copyfile(i, name + "/images/" + str(idx) + ".png")
+        i = Image.open(i)
+        draw_subplots(i, "AD" if g == 0 else "HP", pred, p, name, idx)
+
     f.close()
         # break
         #     fig.add_trace(
