@@ -73,8 +73,9 @@ def build_dataset(is_train, args):
     transform = build_transform(is_train, args)
     val_type = args.ext_val if args.ext_val else 'Int_val'
     path = os.path.join(args.data_path, 'Train' if is_train else val_type)
+    print(path)
     dataset = ImageFolder(path, transform=transform)
-
+    print(len(dataset.samples))
     return dataset, 2
 
 

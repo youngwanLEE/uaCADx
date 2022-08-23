@@ -44,11 +44,16 @@ def draw(data, name):
     wr = csv.writer(f)
     wr.writerow(['img_num'] + [i for i in range(100)])
 
+    origin_f = open(name + "/origin_name.csv", "w")
+    origin_wr = csv.writer(origin_f)
+    origin_wr.writerow(['origin_name', 'img_num'])
+
     if not os.path.exists(name + "/images"):
         os.makedirs(name + "/images")
 
     for idx, (i, p, g) in enumerate(zip(data['images'], data['probs'], data['gts'])):
         wr.writerow([idx] + p[:, 0].tolist())
+        origin_wr.writerow([i.split('/')[-1], idx])
         pred = p.mean(axis=0).argmax(axis=0)
         copyfile(i, name + "/images/" + str(idx) + ".png")
         i = Image.open(i)
