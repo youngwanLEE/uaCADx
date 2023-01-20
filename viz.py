@@ -14,7 +14,7 @@ import seaborn as sns
 import plotly.figure_factory as ff
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-
+import json
 
 
 
@@ -51,13 +51,79 @@ def draw(data, name):
     if not os.path.exists(name + "/images"):
         os.makedirs(name + "/images")
 
+    # images are image name list
+    # probs are probability list of each image
+    # shape [num_images, num_samples, 2]
+    # num_samples mean mc dropout samples
+    # 2 means 2 classes 0 is AD, 1 is HP
+    # gts are ground truth list of each image
     for idx, (i, p, g) in enumerate(zip(data['images'], data['probs'], data['gts'])):
-        wr.writerow([idx] + p[:, 0].tolist())
-        origin_wr.writerow([i.split('/')[-1], idx])
-        pred = p.mean(axis=0).argmax(axis=0)
-        copyfile(i, name + "/images/" + str(idx) + ".png")
-        i = Image.open(i)
-        draw_subplots(i, "AD" if g == 0 else "HP", pred, p, name, idx)
+        mean = p.mean(axis=0)
+        ad = mean[0]
+        hp = mean[1]
+        ad_std = p.std(axis=0)
+        ad_std = [ad - ad_std[0], ad + ad_std[0]]
+        hp_std = p.std(axis=0)
+        hp_std = [hp - hp_std[1], hp + hp_std[1]]
+        # print(ad)
+        fig = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            # delta = {'reference': 0},
+            value = ad if ad > hp else hp,
+            number = {'valueformat': '.0%'},
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            gauge = {
+                'axis': {
+                    'range': [None, 1], 
+                    'tickmode': 'array',
+                    'nticks':11,
+                    'tickvals': [i * 0.1 for i in range(11)],
+                    'tickformat': '.0%'
+                },
+                'bar': {'color': "blue" if ad > hp else "red"},
+                'steps' : [
+                    {'range': ad_std if ad > hp else hp_std, 'color': 'gray'},],
+                # 'threshold' : {
+                #     'line': {'color': "red", 'width': 4},
+                #     'thickness': 0.75,
+                #     'value': 90}
+            }
+        ))
+        fig.update_layout(
+            annotations=[
+                dict(
+                    x=0.5,
+                    y=0.3,
+                    text="Hyperplastic Polyp" if ad < hp else "Adenomatous Polyp",
+                    showarrow=False,
+                    font=dict(size=35, color="black"),
+                    align="center",
+                    bgcolor="white",
+                    xref="paper",
+                    yref="paper"
+                )
+            ]
+        )
+        # fig.tight_layout()
+        fig.write_image(name + f"/{idx}.png")
+
+        # left = Image.open(i)
+        # right = Image.open(name + f"/{idx}.png")
+        # left.thumbnail((left.width,left.height))
+        # resize left image to match right image with aspect ratio
+
+
+        # concat
+        # concat = Image.new('RGB', (left.width + right.width, left.height))
+
+        # plt.close(fig)
+        
+        # wr.writerow([idx] + p[:, 0].tolist())
+        # origin_wr.writerow([i.split('/')[-1], idx])
+        # pred = p.mean(axis=0).argmax(axis=0)
+        # copyfile(i, name + "/images/" + str(idx) + ".png")
+        # i = Image.open(i)
+        # draw_subplots(i, "AD" if g == 0 else "HP", pred, p, name, idx)
 
     f.close()
         # break
@@ -138,6 +204,17 @@ def main():
         if not os.path.exists(result[:-4]):
             os.makedirs(result[:-4])
         data = np.load(result, allow_pickle=True).item()
+        # print(data['probs'].tolist())
+        # print(data['gts'].shape)
+
+        # save as json
+        # with open(f"{args.output}.json", "w") as f:
+        #     data = {
+        #         "probs": data['probs'].tolist(),
+        #         "gts": data['gts'].tolist(),
+        #         "images": data['images']
+        #     }
+        #     json.dump(data, f)
         draw(data, result[:-4])
         # fig
 
