@@ -11,8 +11,16 @@ import torch.nn.functional as F
 
 from timm.data import Mixup
 from timm.utils import ModelEma, accuracy
+#torchmetrics==0.9.3
+from torchmetrics import AUROC, ConfusionMatrix
 
-from torchmetrics import AUROC, F1Score, Recall
+# for torchmetrics==0.11.3
+# from torchmetrics.classification import (
+#     BinaryConfusionMatrix, 
+#     BinaryAUROC, 
+#     BinaryF1Score,
+#     BinaryPrecision,
+#     BinaryRecall)
 # from sklearn.metrics import roc_auc_score, average_precision_score
 
 
@@ -104,9 +112,11 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = "Test:"
 
-    auroc = AUROC(num_classes=2).to(device)
-    f1score = F1Score(num_classes=2).to(device)
-    recall = Recall(num_classes=2).to(device)
+    # for torchmetrics==0.11.1
+    if metrics:
+        auroc = AUROC(num_classes=2).to(device)
+        cfmat = ConfusionMatrix(num_classes=2).to(device)
+
 
     # switch to evaluation mode
     model.eval()
@@ -156,38 +166,50 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
         acc1 = accuracy(output, target, topk=(1,))[0]
 
         y_pred_list.append(output) # output's shape : [batch_size, 2]
+        # y_pred_list.append(torch.argmax(output, dim=1)) # output's shape : [batch_size,]
         y_target_list.append(target) # target's shape : [batch_size]
 
         batch_size = images.shape[0]
         metric_logger.update(loss=loss.item())
         metric_logger.meters["acc1"].update(acc1.item(), n=batch_size)
 
-        if metrics:
-            auroc_val = auroc(output, target)
-            f1_score_val = f1score(output, target)
-            recall_val = recall(output, target)
-            metric_logger.meters['auroc'].update(auroc_val.item(), n=batch_size)
-            metric_logger.meters['f1score'].update(f1_score_val.item(), n=batch_size)
-            metric_logger.meters['recall'].update(recall_val.item(), n=batch_size)
-
-    y_pred_list = torch.cat(y_pred_list)
-    y_target_list = torch.cat(y_target_list)
-    auc_all = auroc(y_pred_list, y_target_list)
-    f1score_all = f1score(y_pred_list, y_target_list)
-    recall_all = recall(y_pred_list, y_target_list)
-    print(f"auc_all: {auc_all:.4f} | f1-score_all: {f1score_all:.4f} | recall_all: {recall_all:.4f}")
-
-
     if metrics:
-        print('* Acc@1 {top1.global_avg:.3f} f1-score {f1score.global_avg:.3f}  '
-              'recall {recall.global_avg:.3f} loss {losses.global_avg:.3f}'
-              .format(top1=metric_logger.acc1, f1score=metric_logger.f1score,
-                      recall=metric_logger.recall, losses=metric_logger.loss))
+        y_pred_list = torch.cat(y_pred_list)
+        y_target_list = torch.cat(y_target_list)
+        auc_all = auroc(y_pred_list, y_target_list)
+        print(f'AUROC: {auc_all:.4f}')
+
+        cfmat_all = cfmat(y_pred_list, y_target_list)
+        TN, FP, FN, TP = cfmat_all[0][0], cfmat_all[0][1], cfmat_all[1][0], cfmat_all[1][1]
+        print(f'TN:{cfmat_all[0][0]}, FP:{cfmat_all[0][1]}, FN:{cfmat_all[1][0]}, TP:{cfmat_all[1][1]}')
+        # Sensitivity -> TPR = TP / (TP + FN)
+        TPR = TP/(TP + FN)
+        print(f'Sensitivity: {TPR:.4f}')
+        # Specificity -> TNR = TN / (TN + FP)
+        TNR = TN/(TN + FP)
+        print(f'Specificity: {TNR:.4f}')
+        # Positive predictive value -> TP / (TP + FP) = Precision (PPV)
+        PPV = TP/(TP + FP)
+        print(f'Positive predictive value: {PPV:.4f}')
+        # negative predictive value -> TN / (TN + FN)
+        NPV = TN/(TN + FN)
+        print(f'Negative predictive value: {NPV:.4f}')
+        # F1-Score -> 2 x (PPV x TPR) / (PPV + TPR)
+        f1_score = 2 * (PPV * TPR) / (PPV + TPR)
+        print(f'F1-score: {f1_score:.4f}')
+        
     else:
         print('* Acc@1 {top1.global_avg:.3f} loss {losses.global_avg:.3f}'
               .format(top1=metric_logger.acc1, losses=metric_logger.loss))
 
     final_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    if metrics:
+        final_stats["sensitivity"] = TPR.item()
+        final_stats["specificity"] = TNR.item()
+        final_stats["positive predictive value"] = PPV.item()
+        final_stats["negative predictive value"] = NPV.item()
+        final_stats["F1-score"] = f1_score.item()
+        final_stats["auroc"] = auc_all.item()
 
     if mc_dropout:
         mc_results = {
