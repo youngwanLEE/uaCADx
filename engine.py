@@ -182,6 +182,9 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
         cfmat_all = cfmat(y_pred_list, y_target_list)
         TN, FP, FN, TP = cfmat_all[0][0], cfmat_all[0][1], cfmat_all[1][0], cfmat_all[1][1]
         print(f'TN:{cfmat_all[0][0]}, FP:{cfmat_all[0][1]}, FN:{cfmat_all[1][0]}, TP:{cfmat_all[1][1]}')
+        # Accuracy -> (TP + TN) / (TP + TN + FP + FN)
+        Acc_from_cmt = (TP + TN) / (TP + TN + FP + FN)
+        print(f'Acc. from confusion matrix: {Acc_from_cmt:.4f}')
         # Sensitivity -> TPR = TP / (TP + FN)
         TPR = TP/(TP + FN)
         print(f'Sensitivity: {TPR:.4f}')
@@ -210,6 +213,8 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
         final_stats["negative predictive value"] = NPV.item()
         final_stats["F1-score"] = f1_score.item()
         final_stats["auroc"] = auc_all.item()
+        final_stats["acc_from_cmt"] = Acc_from_cmt.item()
+        
 
     if mc_dropout:
         mc_results = {
