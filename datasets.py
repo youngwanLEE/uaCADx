@@ -10,6 +10,7 @@ from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from torchvision import datasets, transforms
 from torchvision.datasets.folder import ImageFolder, default_loader
+import torchvision.transforms as T
 
 
 class INatDataset(ImageFolder):
@@ -70,7 +71,11 @@ class INatDataset(ImageFolder):
 
 def build_dataset(is_train, args):
     """buld_dataset."""
-    transform = build_transform(is_train, args)
+    if args.simple_aug:
+        print("simple augmentation is applied")
+        transform = build_simple_transform(is_train)
+    else:
+        transform = build_timm_transform(is_train, args)
     val_type = args.ext_val if args.ext_val else 'Int_val'
     path = os.path.join(args.data_path, 'Train' if is_train else val_type)
     print(path)
@@ -79,7 +84,7 @@ def build_dataset(is_train, args):
     return dataset, 2
 
 
-def build_transform(is_train, args):
+def build_timm_transform(is_train, args):
     """build transform."""
     resize_im = args.input_size > 32
     if is_train:
@@ -112,3 +117,27 @@ def build_transform(is_train, args):
     t.append(transforms.ToTensor())
     t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
     return transforms.Compose(t)
+
+
+def build_simple_transform(is_train=True):
+    
+    if is_train:
+
+        data_T = T.Compose([
+                T.Resize(size = (256, 256)),
+                T.CenterCrop(size=224),
+                T.RandomHorizontalFlip(),
+                T.RandomRotation(10),
+                T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])
+        ])
+    
+    else:
+        data_T = T.Compose([
+                T.Resize(size = (256, 256)),
+                T.CenterCrop(size=224),
+                T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])
+        ])
+        
+    return data_T
