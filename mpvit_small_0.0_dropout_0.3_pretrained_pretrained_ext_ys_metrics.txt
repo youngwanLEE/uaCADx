@@ -1,0 +1,1 @@
+{"auc": 0.7405372262001038, "Sensitivity": 0.6153846383094788, "Specificity": 0.7714285850524902, "Positive predictive value": 0.5, "Negative predictive value": 0.84375, "f1_score": 0.5517241954803467, "Accuracy": 0.671875}

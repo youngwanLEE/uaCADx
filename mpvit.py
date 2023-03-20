@@ -706,7 +706,7 @@ class MPViT(nn.Module):
         """foward function"""
         x = self.forward_features(x)
 
-        if self.training or drop_on:
+        if self.training or drop_on or self.drop:
             x = F.dropout(x, p=self.drop, training=True)
         # cls head
         out = self.cls_head(x)
