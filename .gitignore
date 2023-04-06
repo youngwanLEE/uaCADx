@@ -1,5 +1,11 @@
 # Byte-compiled / optimized / DLL files
-
+*.png
+*.pth
+*.jpg
+*.zip
+*.npy
+*.csv
+*.txt
 data/*
 # folder
 output/
