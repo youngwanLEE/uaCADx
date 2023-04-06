@@ -16,6 +16,8 @@ import datetime
 import json
 import time
 from pathlib import Path
+import os
+import cv2
 
 import numpy as np
 import torch
@@ -318,6 +320,7 @@ def get_args_parser():
                         help="ext_val set. e.g., `Ext_val/ys` or `Ext_val/eh` or `Ext_val/as` ")
     parser.add_argument("--mc", action="store_true", default=False, help="Perform mc dropout evaluation")
     parser.add_argument("--mc_iter", type=int, default=100, help="mc dropout iteration")
+    parser.add_argument("--save_cam", action='store_true', help="save grad cam")
     parser.add_argument("--metrics", action="store_true", default=False,
                         help="shows otehr metrics: AUC, F1-score, and Recall")
     return parser
@@ -343,10 +346,12 @@ def main(args):
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
-    seed = args.seed + utils.get_rank()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    # random.seed(seed)
+    if not args.eval or (args.eval and not args.mc):
+        seed = args.seed + utils.get_rank()
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        # random.seed(seed)
+        print('set seed')
 
     cudnn.benchmark = True
 
@@ -439,6 +444,7 @@ def main(args):
 
     model_without_ddp = model
     if args.distributed:
+        print(args.gpu)
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[args.gpu], find_unused_parameters=True
         )
@@ -471,7 +477,12 @@ def main(args):
             )
         else:
             checkpoint = torch.load(args.resume, map_location="cpu")
-        model_without_ddp.load_state_dict(checkpoint["model"])
+        # print(checkpoint.keys())
+        if 'model' in checkpoint:
+        
+            model_without_ddp.load_state_dict(checkpoint['model'])
+        else:
+            model_without_ddp.load_state_dict(checkpoint)
         if (
                 not args.eval
                 and "optimizer" in checkpoint
@@ -486,7 +497,7 @@ def main(args):
 
     if args.mc:
         test_stats, mc_results = evaluate(data_loader_val, model, device, disable_amp=args.disable_amp, mc_dropout=True,
-                                          mc_iter=args.mc_iter, metrics=args.metrics)
+                                          mc_iter=args.mc_iter, metrics=args.metrics, cam=args.save_cam)
 
         print(
             f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%"
@@ -496,6 +507,18 @@ def main(args):
                 add_name = "_" + args.ext_val.split("/")[-1]
             else:
                 add_name = ""
+
+            if args.save_cam:
+                # imgs, h, w, c, 10
+                cam_images = mc_results['cam']
+                del mc_results['cam']
+                for img_name, img_stack in zip(mc_results['images'], cam_images):
+                    if not os.path.exists(output_dir / 'cam'):
+                        os.makedirs(output_dir / 'cam')
+                    img_name = img_name.split('/')[-1]
+                    for i in range(img_stack.shape[-1]):
+                        cv2.imwrite(str(output_dir / 'cam' / f"{img_name}_{i}.jpg"), img_stack[..., i])
+            
             np.save(output_dir / f"mc_results{add_name}.npy", mc_results)
             with (output_dir / "test_mc_log.txt").open("w") as f:
                 log_stats = {
@@ -503,6 +526,8 @@ def main(args):
                     "n_parameters": n_parameters,
                 }
                 f.write(json.dumps(log_stats) + "\n")
+            
+            
 
         return
     elif args.eval:

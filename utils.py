@@ -10,6 +10,8 @@ import io
 import os
 import time
 from collections import defaultdict, deque
+import cv2
+import numpy as np
 
 import torch
 import torch.distributed as dist
@@ -324,3 +326,41 @@ def init_distributed_mode(args):
     torch.distributed.barrier()
     # setup_for_distributed(args.rank == 0)
     setup_for_distributed2(args.rank)
+
+
+def show_cam_on_image(img: np.ndarray,
+                      mask: np.ndarray,
+                      use_rgb: bool = True,
+                      colormap: int = cv2.COLORMAP_JET,
+                      image_weight: float = 0.5,
+                      thr: float = 0.3) -> np.ndarray:
+    """ This function overlays the cam mask on the image as an heatmap.
+    By default the heatmap is in BGR format.
+    :param img: The base image in RGB or BGR format.
+    :param mask: The cam mask.
+    :param use_rgb: Whether to use an RGB or BGR heatmap, this should be set to True if 'img' is in RGB format.
+    :param colormap: The OpenCV colormap to be used.
+    :param image_weight: The final result is image_weight * img + (1-image_weight) * mask.
+    :returns: The default image with the cam overlay.
+    """
+    mask_thr = mask < thr
+    heatmap = cv2.applyColorMap(np.uint8(255 * mask), colormap)
+    heatmap[mask_thr] = 0
+    if use_rgb:
+        heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+    heatmap = np.float32(heatmap) / 255
+
+    if np.max(img) > 1:
+        raise Exception(
+            "The input image should np.float32 in the range [0, 1]")
+
+    if image_weight < 0 or image_weight > 1:
+        raise Exception(
+            f"image_weight should be in the range [0, 1].\
+                Got: {image_weight}")
+
+    cam = (1 - image_weight) * heatmap + image_weight * img
+
+    cam = cam / np.max(cam)
+    cam[mask_thr] = img[mask_thr]
+    return np.uint8(255 * cam)

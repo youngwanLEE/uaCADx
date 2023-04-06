@@ -4,10 +4,17 @@
 import math
 import sys
 from typing import Iterable, Optional
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
+from PIL import Image
+import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+
+from pytorch_grad_cam import GradCAM, AblationCAM
+from pytorch_grad_cam.utils.image import show_cam_on_image
 
 from timm.data import Mixup
 from timm.utils import ModelEma, accuracy
@@ -105,7 +112,7 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=1, metrics=None):
+def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=1, metrics=None, cam=False):
     """evaluation function."""
     criterion = torch.nn.CrossEntropyLoss()
 
@@ -117,19 +124,33 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
         auroc = AUROC(num_classes=2).to(device)
         cfmat = ConfusionMatrix(num_classes=2).to(device)
 
-
     # switch to evaluation mode
     model.eval()
+
+    if cam:
+        def reshape_transform(tensor, height=7, width=7):
+            result = tensor.reshape(tensor.size(0),
+                tensor.size(1), 1, 1)
+
+            # Bring the channels to the first dimension,
+            # like in CNNs.
+            # result = result.transpose(2, 3).transpose(1, 2)
+            return result
+        # cam_model = partial(model, drop_on=True)
+        target_layers = [model.mhca_stages[-1].aggregate.bn]
+        gcam = GradCAM(model=model, target_layers=target_layers)#, reshape_transform=reshape_transform)
 
     mc_gts = []
     mc_results = []
     y_pred_list = []
     y_target_list = []
-
+    cam_all = []
+    rgb_images = [s[0] for s in data_loader.dataset.samples]
+    start = 0
     for images, target in metric_logger.log_every(data_loader, 10, header):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
-
+        # print(target)
         # compute output
         if disable_amp:
             if mc_dropout:
@@ -145,6 +166,37 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
                 mc_gts.append(target.detach().cpu().numpy())
             else:
                 output = model(images)
+            
+            if cam:
+                with torch.set_grad_enabled(True):
+                    cam_images = [[] for i in range(len(images))]
+                    for mc_i in range(1):
+                        grayscale_cam = gcam(input_tensor=images,
+                                targets=[ClassifierOutputTarget(t) for t in target])
+
+                        model.zero_grad()
+                        # denorm = images.cpu() * torch.tensor(IMAGENET_DEFAULT_STD)[:, None, None] + torch.tensor(IMAGENET_DEFAULT_MEAN)[:, None, None]
+                        # print(denorm)
+                        # grayscale_cam[grayscale_cam < 0.3] = 0
+                        for img_i, (rgbi, g) in enumerate(zip(rgb_images[start: start+len(images)], grayscale_cam)):
+                            rgbi = Image.open(rgbi).convert('RGB')
+                            rgbi = np.array(rgbi) / 255
+                            # g = cv2.resize(g, (224, 224))
+                            # pad g to 256, 256
+                            # g = np.pad(g, ((16, 16), (16, 16)), 'constant', constant_values=np.minimum(g.min(), 0))
+                            # resize as rgbi
+                            g = cv2.resize(g, (rgbi.shape[1], rgbi.shape[0]))
+                            # g[g < 0.5] = 0
+                            cap = utils.show_cam_on_image(rgbi, g, image_weight=0.5, colormap=cv2.COLORMAP_HOT, thr=0.)
+                            # mask = np.expand_dims(g, axis=-1)
+                            # mask = np.repeat(mask, 3, axis=-1)
+                            # cap[mask < 0.3] = (rgbi[mask < 0.3] * 255).astype(np.uint8)
+                            cam_images[img_i].append(cap)
+                    # cam_images
+                        # cam_images.append(
+                        #     np.stack([show_cam_on_image(rgbi, g, image_weight=0.5) for rgbi, g in zip(denorm.cpu().permute(0, 2, 3, 1).numpy(), grayscale_cam)], axis=0))
+                    # cam_images = cam_images, axis=0)
+                    cam_all += [np.stack(c, axis=-1)[:, :, ::-1] for c in cam_images]
             loss = criterion(output, target)
         else:
             with torch.cuda.amp.autocast():
@@ -161,8 +213,21 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
                     mc_gts.append(target.detach().cpu().numpy())
                 else:
                     output = model(images)
-                loss = criterion(output, target)
+                
+                if cam:
+                    with torch.set_grad_enabled(True):
+                        cam_images = []
+                        for _ in range(10):
+                            grayscale_cam = gcam(input_tensor=images, targets=[ClassifierOutputTarget(t) for t in target])
+                            denorm = images * torch.tensor(IMAGENET_DEFAULT_STD)[:, None, None] + torch.tensor(IMAGENET_DEFAULT_MEAN)[:, None, None]
 
+                            cam_images.append(
+                                np.stack([show_cam_on_image(rgbi.cpu().detach().numpy(), g, image_weight=0.8) for rgbi, g in zip(denorm, grayscale_cam)], axis=0))
+                        cam_images = np.stack(cam_images, axis=-1)
+                        cam_all.append(cam_images)
+
+                loss = criterion(output, target)
+        start += len(images)
         acc1 = accuracy(output, target, topk=(1,))[0]
 
         y_pred_list.append(output) # output's shape : [batch_size, 2]
@@ -220,7 +285,8 @@ def evaluate(data_loader, model, device, disable_amp, mc_dropout=False, mc_iter=
         mc_results = {
             'probs': np.concatenate(mc_results, axis=0),
             'gts': np.concatenate(mc_gts, axis=0),
-            'images': [s[0] for s in data_loader.dataset.samples],
+            'images': rgb_images,
+            'cam': cam_all if cam else None
         }
         return final_stats, mc_results
     return final_stats

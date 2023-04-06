@@ -674,6 +674,7 @@ class MPViT(nn.Module):
         self.cls_head = Cls_head(embed_dims[-1], num_classes)
 
         self.apply(self._init_weights)
+        self.mc_dropout = nn.Dropout(p=self.drop)
 
     def _init_weights(self, m):
         """initialization"""
@@ -702,12 +703,13 @@ class MPViT(nn.Module):
 
         return x
 
-    def forward(self, x, drop_on=False):
+    def forward(self, x, drop_on=True):
         """foward function"""
         x = self.forward_features(x)
 
         if self.training or drop_on:
-            x = F.dropout(x, p=self.drop, training=True)
+            self.mc_dropout.training = True
+            x = self.mc_dropout(x)
         # cls head
         out = self.cls_head(x)
         return out
