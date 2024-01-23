@@ -39,4 +39,4 @@ python -m torch.distributed.launch --nproc_per_node 8 --use_env main.py --model 
 ## Acknowlegement
 
 This repository is built on 
-This repository is built using the [Timm](https://github.com/rwightman/pytorch-image-models) and [MPViT](https://github.com/youngwanLEE/MPViT) for backbone networks and [pytorch-gradm-cam](https://github.com/jacobgil/pytorch-grad-cam) for visualizing the class activation map.
+This repository is built using the [Timm](https://github.com/rwightman/pytorch-image-models) and [MPViT](https://github.com/youngwanLEE/MPViT) for backbone networks and [Transformer-Explainability](https://github.com/hila-chefer/Transformer-Explainability) for visualizing the attention map.
