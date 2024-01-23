@@ -34,3 +34,9 @@ python -m torch.distributed.launch --nproc_per_node 8 --use_env main.py --model 
 |------------------------------------------	|:------------------:	|:---------------------:|:---------------------:|:---------------------:|
 |     Model size                           	|     22.8M          	|     22.1M            	|     22.1M            	|     25.6M            	|
 |     Accuracy (Last top-1/ Max top-1)     	|     97.0 / 96.0    	|     93.7 /   92.0    	|     93.0 /   92.3    	|     95.0 /   94.3    	|
+
+
+## Acknowlegement
+
+This repository is built on 
+This repository is built using the [Timm](https://github.com/rwightman/pytorch-image-models) and [MPViT](https://github.com/youngwanLEE/MPViT) for backbone networks and [pytorch-gradm-cam](https://github.com/jacobgil/pytorch-grad-cam) for visualizing the class activation map.
